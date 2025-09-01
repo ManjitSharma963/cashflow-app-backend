@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Cash Flow Manager</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 30px;
+            border: 1px solid #c3e6cb;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .section h2 {
+            color: #495057;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .endpoint {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8em;
+            margin-right: 10px;
+            min-width: 60px;
+            text-align: center;
+        }
+        .get { background: #28a745; color: white; }
+        .post { background: #007bff; color: white; }
+        .put { background: #ffc107; color: black; }
+        .delete { background: #dc3545; color: white; }
+        .endpoint-url {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 5px 10px;
+            border-radius: 3px;
+            border: 1px solid #dee2e6;
+        }
+        .swagger-links {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            color: white;
+        }
+        .swagger-links a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            padding: 10px 20px;
+            border: 2px solid white;
+            border-radius: 25px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        .swagger-links a:hover {
+            background: white;
+            color: #667eea;
+            transform: translateY(-2px);
+        }
+        .quick-test {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #bbdefb;
+        }
+        .quick-test h3 {
+            color: #1976d2;
+            margin-top: 0;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 Shop Cash Flow Manager</h1>
+        
+        <div class="status">
+            ✅ <strong>Backend API is running successfully!</strong><br>
+            🚀 Ready to manage your shop's cash flow and customer credits
+        </div>
+
+        <div class="swagger-links">
+            <h2>📚 Interactive API Documentation</h2>
+            <a href="/swagger-ui.html" target="_blank">🔍 Swagger UI</a>
+            <a href="/api-docs" target="_blank">📖 OpenAPI JSON</a>
+            <a href="/api-docs.yaml" target="_blank">📄 OpenAPI YAML</a>
+        </div>
+
+        <div class="section">
+            <h2>📊 Available API Endpoints</h2>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span class="endpoint-url">/api/customers</span>
+                <p>List all customers with optional filtering and pagination</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span class="endpoint-url">/api/customers</span>
+                <p>Create a new customer</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span class="endpoint-url">/api/customers/{id}</span>
+                <p>Get customer details by mobile number</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method put">PUT</span>
+                <span class="endpoint-url">/api/customers/{id}</span>
+                <p>Update existing customer</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method delete">DELETE</span>
+                <span class="endpoint-url">/api/customers/{id}</span>
+                <p>Delete customer (only if no outstanding transactions)</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span class="endpoint-url">/api/transactions</span>
+                <p>List all transactions with filtering options</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span class="endpoint-url">/api/transactions</span>
+                <p>Create new transaction (Credit/Payment/Adjustment)</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span class="endpoint-url">/api/payments</span>
+                <p>Process customer payment</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span class="endpoint-url">/api/dashboard/summary</span>
+                <p>Get dashboard statistics and analytics</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span class="endpoint-url">/api/categories</span>
+                <p>Get customer categories</p>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span class="endpoint-url">/api/settings</span>
+                <p>Get application settings</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🧪 Quick API Testing</h2>
+            <div class="quick-test">
+                <h3>Test the API endpoints using these commands:</h3>
+                
+                <div class="code-block">
+# Test if API is running
+curl http://localhost:8080/api/customers
+
+# Create a new customer
+curl -X POST http://localhost:8080/api/customers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Customer",
+    "mobile": "9998887777",
+    "address": "Test Address",
+    "category": "Regular",
+    "notes": "Test customer"
+  }'
+
+# Create a transaction
+curl -X POST http://localhost:8080/api/transactions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": "9998887777",
+    "transactionType": "Credit",
+    "amount": 100.00,
+    "description": "Test credit transaction",
+    "date": "2024-01-15"
+  }'
+
+# Get dashboard summary
+curl http://localhost:8080/api/dashboard/summary?period=month
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Complete API Documentation</h2>
+            <p>For detailed API documentation with all endpoints, request/response formats, and examples:</p>
+            <ul>
+                <li><strong>Interactive Swagger UI:</strong> <a href="/swagger-ui.html" target="_blank">/swagger-ui.html</a></li>
+                <li><strong>OpenAPI JSON:</strong> <a href="/api-docs" target="_blank">/api-docs</a></li>
+                <li><strong>OpenAPI YAML:</strong> <a href="/api-docs.yaml" target="_blank">/api-docs.yaml</a></li>
+            </ul>
+        </div>
+
+        <div class="note">
+            <strong>💡 Pro Tip:</strong> Use the Swagger UI to interactively test all API endpoints. 
+            It provides a user-friendly interface to explore the API, see request/response schemas, 
+            and execute requests directly from your browser.
+        </div>
+
+        <div class="section">
+            <h2>🔧 Development Information</h2>
+            <ul>
+                <li><strong>Base URL:</strong> <code>http://localhost:8080/api</code></li>
+                <li><strong>Database:</strong> MySQL (shop_cashflow)</li>
+                <li><strong>Framework:</strong> Spring Boot 3.2.0</li>
+                <li><strong>Java Version:</strong> 17</li>
+                <li><strong>Documentation:</strong> Swagger/OpenAPI 3</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html> 
