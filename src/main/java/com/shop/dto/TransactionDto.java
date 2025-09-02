@@ -2,13 +2,14 @@ package com.shop.dto;
 
 import com.shop.entity.Transaction.TransactionType;
 import com.shop.entity.Transaction.TransactionStatus;
+import com.shop.entity.Transaction.PaymentMethod;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class TransactionDto {
-    private Long id;
+    private String id;
     
     @NotNull(message = "Customer ID is required")
     private String customerId;
@@ -22,20 +23,21 @@ public class TransactionDto {
     @Positive(message = "Amount must be positive")
     private BigDecimal amount;
     
+    @NotNull(message = "Description is required")
     private String description;
     
     @NotNull(message = "Date is required")
     private LocalDate date;
     
     private TransactionStatus status = TransactionStatus.PENDING;
-    private String paymentMethod;
+    private PaymentMethod paymentMethod = PaymentMethod.CASH;
     private String notes;
 
     public TransactionDto() {}
 
-    public TransactionDto(Long id, String customerId, String customerName, TransactionType transactionType, 
+    public TransactionDto(String id, String customerId, String customerName, TransactionType transactionType, 
                          BigDecimal amount, String description, LocalDate date, TransactionStatus status, 
-                         String paymentMethod, String notes) {
+                         PaymentMethod paymentMethod, String notes) {
         this.id = id;
         this.customerId = customerId;
         this.customerName = customerName;
@@ -49,11 +51,11 @@ public class TransactionDto {
     }
 
     // Getters and Setters
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -113,11 +115,11 @@ public class TransactionDto {
         this.status = status;
     }
 
-    public String getPaymentMethod() {
+    public PaymentMethod getPaymentMethod() {
         return paymentMethod;
     }
 
-    public void setPaymentMethod(String paymentMethod) {
+    public void setPaymentMethod(PaymentMethod paymentMethod) {
         this.paymentMethod = paymentMethod;
     }
 

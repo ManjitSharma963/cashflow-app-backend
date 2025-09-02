@@ -6,6 +6,8 @@ import com.shop.service.TransactionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -21,6 +23,11 @@ public class TransactionController {
     @Autowired
     private TransactionService transactionService;
 
+    private String getCurrentUserEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication.getName();
+    }
+
     @GetMapping
     public ResponseEntity<List<TransactionDto>> getAllTransactions(
             @RequestParam(required = false) String customerId,
@@ -29,20 +36,23 @@ public class TransactionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
+        String userEmail = getCurrentUserEmail();
+
         if (customerId != null) {
-            return ResponseEntity.ok(transactionService.getTransactionsByCustomer(customerId));
+            return ResponseEntity.ok(transactionService.getTransactionsByCustomer(userEmail, customerId));
         }
 
         if (status != null && "pending".equalsIgnoreCase(status)) {
-            return ResponseEntity.ok(transactionService.getPendingTransactions());
+            return ResponseEntity.ok(transactionService.getPendingTransactions(userEmail));
         }
 
-        return ResponseEntity.ok(transactionService.getAllTransactions());
+        return ResponseEntity.ok(transactionService.getAllTransactions(userEmail));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TransactionDto> getTransactionById(@PathVariable Long id) {
-        TransactionDto transaction = transactionService.getTransactionById(id);
+    public ResponseEntity<TransactionDto> getTransactionById(@PathVariable String id) {
+        String userEmail = getCurrentUserEmail();
+        TransactionDto transaction = transactionService.getTransactionById(userEmail, id);
         if (transaction != null) {
             return ResponseEntity.ok(transaction);
         }
@@ -51,16 +61,18 @@ public class TransactionController {
 
     @PostMapping
     public ResponseEntity<TransactionDto> createTransaction(@Valid @RequestBody TransactionDto transactionDto) {
-        TransactionDto createdTransaction = transactionService.createTransaction(transactionDto);
+        String userEmail = getCurrentUserEmail();
+        TransactionDto createdTransaction = transactionService.createTransaction(userEmail, transactionDto);
         return ResponseEntity.ok(createdTransaction);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<TransactionDto> updateTransaction(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody TransactionDto transactionDto) {
         try {
-            TransactionDto updatedTransaction = transactionService.updateTransaction(id, transactionDto);
+            String userEmail = getCurrentUserEmail();
+            TransactionDto updatedTransaction = transactionService.updateTransaction(userEmail, id, transactionDto);
             return ResponseEntity.ok(updatedTransaction);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -68,9 +80,10 @@ public class TransactionController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTransaction(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteTransaction(@PathVariable String id) {
         try {
-            transactionService.deleteTransaction(id);
+            String userEmail = getCurrentUserEmail();
+            transactionService.deleteTransaction(userEmail, id);
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -79,10 +92,11 @@ public class TransactionController {
 
     @PostMapping("/{id}/mark-paid")
     public ResponseEntity<TransactionDto> updatePaymentStatus(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestParam TransactionStatus status) {
         try {
-            TransactionDto updatedTransaction = transactionService.updateTransactionStatus(id, status);
+            String userEmail = getCurrentUserEmail();
+            TransactionDto updatedTransaction = transactionService.updateTransactionStatus(userEmail, id, status);
             return ResponseEntity.ok(updatedTransaction);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -91,40 +105,46 @@ public class TransactionController {
 
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<List<TransactionDto>> getTransactionsByCustomer(@PathVariable String customerId) {
-        List<TransactionDto> transactions = transactionService.getTransactionsByCustomer(customerId);
+        String userEmail = getCurrentUserEmail();
+        List<TransactionDto> transactions = transactionService.getTransactionsByCustomer(userEmail, customerId);
         return ResponseEntity.ok(transactions);
     }
 
     @GetMapping("/pending")
     public ResponseEntity<List<TransactionDto>> getPendingTransactions() {
-        List<TransactionDto> transactions = transactionService.getPendingTransactions();
+        String userEmail = getCurrentUserEmail();
+        List<TransactionDto> transactions = transactionService.getPendingTransactions(userEmail);
         return ResponseEntity.ok(transactions);
     }
 
     @GetMapping("/overdue")
     public ResponseEntity<List<TransactionDto>> getOverdueTransactions() {
-        List<TransactionDto> transactions = transactionService.getOverdueTransactions();
+        String userEmail = getCurrentUserEmail();
+        List<TransactionDto> transactions = transactionService.getOverdueTransactions(userEmail);
         return ResponseEntity.ok(transactions);
     }
 
     @GetMapping("/daily/sales")
     public ResponseEntity<BigDecimal> getDailySales(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        BigDecimal sales = transactionService.getDailySales(date);
+        String userEmail = getCurrentUserEmail();
+        BigDecimal sales = transactionService.getDailySales(userEmail, date);
         return ResponseEntity.ok(sales);
     }
 
     @GetMapping("/daily/cash")
     public ResponseEntity<BigDecimal> getDailyCashReceived(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        BigDecimal cash = transactionService.getDailyCashReceived(date);
+        String userEmail = getCurrentUserEmail();
+        BigDecimal cash = transactionService.getDailyCashReceived(userEmail, date);
         return ResponseEntity.ok(cash);
     }
 
     @GetMapping("/daily/credit")
     public ResponseEntity<BigDecimal> getDailyCreditGiven(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        BigDecimal credit = transactionService.getDailyCreditGiven(date);
+        String userEmail = getCurrentUserEmail();
+        BigDecimal credit = transactionService.getDailyCreditGiven(userEmail, date);
         return ResponseEntity.ok(credit);
     }
 
@@ -132,7 +152,8 @@ public class TransactionController {
     public ResponseEntity<BigDecimal> getPeriodSales(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        BigDecimal sales = transactionService.getPeriodSales(startDate, endDate);
+        String userEmail = getCurrentUserEmail();
+        BigDecimal sales = transactionService.getPeriodSales(userEmail, startDate, endDate);
         return ResponseEntity.ok(sales);
     }
 
@@ -140,7 +161,8 @@ public class TransactionController {
     public ResponseEntity<BigDecimal> getPeriodCashReceived(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        BigDecimal cash = transactionService.getPeriodCashReceived(startDate, endDate);
+        String userEmail = getCurrentUserEmail();
+        BigDecimal cash = transactionService.getPeriodCashReceived(userEmail, startDate, endDate);
         return ResponseEntity.ok(cash);
     }
 
@@ -148,7 +170,8 @@ public class TransactionController {
     public ResponseEntity<BigDecimal> getPeriodCreditGiven(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        BigDecimal credit = transactionService.getPeriodCreditGiven(startDate, endDate);
+        String userEmail = getCurrentUserEmail();
+        BigDecimal credit = transactionService.getPeriodCreditGiven(userEmail, startDate, endDate);
         return ResponseEntity.ok(credit);
     }
 }

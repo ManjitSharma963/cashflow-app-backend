@@ -12,12 +12,19 @@ import java.util.List;
 @Table(name = "transactions")
 public class Transaction {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = 50)
+    private String id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_email", referencedColumnName = "email", nullable = false)
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
+
+    @Column(name = "customer_name", nullable = false, length = 100)
+    private String customerName;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false)
@@ -28,7 +35,7 @@ public class Transaction {
     @Column(precision = 10, scale = 2, nullable = false)
     private BigDecimal amount;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
 
     @Column(nullable = false)
@@ -37,8 +44,9 @@ public class Transaction {
     @Enumerated(EnumType.STRING)
     private TransactionStatus status = TransactionStatus.PENDING;
 
-    @Column(name = "payment_method", length = 50)
-    private String paymentMethod;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method")
+    private PaymentMethod paymentMethod = PaymentMethod.CASH;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
@@ -60,6 +68,10 @@ public class Transaction {
         PENDING, COMPLETED, CANCELLED
     }
 
+    public enum PaymentMethod {
+        CASH, BANK_TRANSFER, UPI, CHEQUE, CARD, ADJUSTMENT, OTHER
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -74,13 +86,40 @@ public class Transaction {
         updatedAt = LocalDateTime.now();
     }
 
+    // Constructors
+    public Transaction() {}
+
+    public Transaction(String id, User user, Customer customer, String customerName, TransactionType transactionType, 
+                      BigDecimal amount, String description, LocalDate date, TransactionStatus status, 
+                      PaymentMethod paymentMethod, String notes) {
+        this.id = id;
+        this.user = user;
+        this.customer = customer;
+        this.customerName = customerName;
+        this.transactionType = transactionType;
+        this.amount = amount;
+        this.description = description;
+        this.date = date;
+        this.status = status;
+        this.paymentMethod = paymentMethod;
+        this.notes = notes;
+    }
+
     // Getters and Setters
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 
     public Customer getCustomer() {
@@ -89,6 +128,14 @@ public class Transaction {
 
     public void setCustomer(Customer customer) {
         this.customer = customer;
+    }
+
+    public String getCustomerName() {
+        return customerName;
+    }
+
+    public void setCustomerName(String customerName) {
+        this.customerName = customerName;
     }
 
     public TransactionType getTransactionType() {
@@ -131,11 +178,11 @@ public class Transaction {
         this.status = status;
     }
 
-    public String getPaymentMethod() {
+    public PaymentMethod getPaymentMethod() {
         return paymentMethod;
     }
 
-    public void setPaymentMethod(String paymentMethod) {
+    public void setPaymentMethod(PaymentMethod paymentMethod) {
         this.paymentMethod = paymentMethod;
     }
 

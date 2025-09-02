@@ -11,55 +11,73 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+public interface TransactionRepository extends JpaRepository<Transaction, String> {
 
-    List<Transaction> findByCustomerId(String customerId);
+    // Find by user email
+    List<Transaction> findByUserEmailOrderByDateDescCreatedAtDesc(String userEmail);
     
-    List<Transaction> findByCustomerIdOrderByDateDesc(String customerId);
+    Optional<Transaction> findByIdAndUserEmail(String id, String userEmail);
     
-    List<Transaction> findByTransactionType(TransactionType type);
+    List<Transaction> findByUserEmailAndCustomerId(String userEmail, String customerId);
     
-    List<Transaction> findByStatus(TransactionStatus status);
+    List<Transaction> findByUserEmailAndCustomerIdOrderByDateDesc(String userEmail, String customerId);
     
-    List<Transaction> findByTransactionTypeAndStatus(TransactionType type, TransactionStatus status);
+    List<Transaction> findByUserEmailAndTransactionType(String userEmail, TransactionType type);
     
-    List<Transaction> findByTransactionTypeAndDate(TransactionType type, LocalDate date);
+    List<Transaction> findByUserEmailAndStatus(String userEmail, TransactionStatus status);
     
-    List<Transaction> findByTransactionTypeAndDateAndStatus(TransactionType type, LocalDate date, TransactionStatus status);
+    List<Transaction> findByUserEmailAndTransactionTypeAndStatus(String userEmail, TransactionType type, TransactionStatus status);
     
-    List<Transaction> findByTransactionTypeAndDateBetween(TransactionType type, LocalDate startDate, LocalDate endDate);
+    List<Transaction> findByUserEmailAndTransactionTypeAndDate(String userEmail, TransactionType type, LocalDate date);
     
-    List<Transaction> findByTransactionTypeAndDateBetweenAndStatus(TransactionType type, LocalDate startDate, LocalDate endDate, TransactionStatus status);
+    List<Transaction> findByUserEmailAndTransactionTypeAndDateAndStatus(String userEmail, TransactionType type, LocalDate date, TransactionStatus status);
     
-    List<Transaction> findByStatusAndDateBefore(TransactionStatus status, LocalDate date);
+    List<Transaction> findByUserEmailAndTransactionTypeAndDateBetween(String userEmail, TransactionType type, LocalDate startDate, LocalDate endDate);
     
-    @Query("SELECT t FROM Transaction t WHERE t.customer.id = :customerId AND t.status = 'PENDING' ORDER BY t.date ASC")
-    List<Transaction> findPendingTransactionsByCustomer(@Param("customerId") String customerId);
+    List<Transaction> findByUserEmailAndTransactionTypeAndDateBetweenAndStatus(String userEmail, TransactionType type, LocalDate startDate, LocalDate endDate, TransactionStatus status);
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.customer.id = :customerId AND t.transactionType = 'CREDIT' AND t.status = 'PENDING'")
-    BigDecimal getTotalPendingCreditByCustomer(@Param("customerId") String customerId);
+    List<Transaction> findByUserEmailAndStatusAndDateBefore(String userEmail, TransactionStatus status, LocalDate date);
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.customer.id = :customerId AND t.transactionType = 'PAYMENT' AND t.status = 'COMPLETED'")
-    BigDecimal getTotalPaymentsByCustomer(@Param("customerId") String customerId);
+    List<Transaction> findByUserEmailAndDateBetween(String userEmail, LocalDate startDate, LocalDate endDate);
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.transactionType = :type AND t.date = :date AND t.status = :status")
-    BigDecimal getTotalAmountByTypeAndDateAndStatus(
+    // Custom queries with user filtering
+    @Query("SELECT t FROM Transaction t WHERE t.user.email = :userEmail AND t.customer.id = :customerId AND t.status = 'PENDING' ORDER BY t.date ASC")
+    List<Transaction> findPendingTransactionsByCustomerAndUser(@Param("userEmail") String userEmail, @Param("customerId") String customerId);
+    
+    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.user.email = :userEmail AND t.customer.id = :customerId AND t.transactionType = 'CREDIT' AND t.status = 'PENDING'")
+    BigDecimal getTotalPendingCreditByCustomerAndUser(@Param("userEmail") String userEmail, @Param("customerId") String customerId);
+    
+    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.user.email = :userEmail AND t.customer.id = :customerId AND t.transactionType = 'PAYMENT' AND t.status = 'COMPLETED'")
+    BigDecimal getTotalPaymentsByCustomerAndUser(@Param("userEmail") String userEmail, @Param("customerId") String customerId);
+    
+    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.user.email = :userEmail AND t.transactionType = :type AND t.date = :date AND t.status = :status")
+    BigDecimal getTotalAmountByUserAndTypeAndDateAndStatus(
+            @Param("userEmail") String userEmail,
             @Param("type") TransactionType type, 
             @Param("date") LocalDate date, 
             @Param("status") TransactionStatus status);
     
-    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.transactionType = :type AND t.date BETWEEN :startDate AND :endDate AND t.status = :status")
-    BigDecimal getTotalAmountByTypeAndDateRangeAndStatus(
+    @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.user.email = :userEmail AND t.transactionType = :type AND t.date BETWEEN :startDate AND :endDate AND t.status = :status")
+    BigDecimal getTotalAmountByUserAndTypeAndDateRangeAndStatus(
+            @Param("userEmail") String userEmail,
             @Param("type") TransactionType type, 
             @Param("startDate") LocalDate startDate, 
             @Param("endDate") LocalDate endDate, 
             @Param("status") TransactionStatus status);
     
-    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.date = :date AND t.transactionType = 'CREDIT'")
-    Long getDailyCreditTransactionCount(@Param("date") LocalDate date);
+    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.user.email = :userEmail AND t.date = :date AND t.transactionType = 'CREDIT'")
+    Long getDailyCreditTransactionCountByUser(@Param("userEmail") String userEmail, @Param("date") LocalDate date);
     
-    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.date = :date AND t.transactionType = 'PAYMENT'")
-    Long getDailyPaymentTransactionCount(@Param("date") LocalDate date);
+    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.user.email = :userEmail AND t.date = :date AND t.transactionType = 'PAYMENT'")
+    Long getDailyPaymentTransactionCountByUser(@Param("userEmail") String userEmail, @Param("date") LocalDate date);
+    
+    // Aggregation queries for user
+    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.user.email = :userEmail AND t.status = 'PENDING'")
+    Long countPendingTransactionsByUser(@Param("userEmail") String userEmail);
+    
+    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.user.email = :userEmail AND t.status = 'COMPLETED'")
+    Long countCompletedTransactionsByUser(@Param("userEmail") String userEmail);
 } 

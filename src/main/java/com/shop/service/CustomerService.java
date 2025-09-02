@@ -2,7 +2,9 @@ package com.shop.service;
 
 import com.shop.dto.CustomerDto;
 import com.shop.entity.Customer;
+import com.shop.entity.User;
 import com.shop.repository.CustomerRepository;
+import com.shop.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,18 +23,22 @@ public class CustomerService {
     @Autowired
     private CustomerRepository customerRepository;
 
-    public List<CustomerDto> getAllCustomers() {
-        return customerRepository.findAll().stream()
+    @Autowired
+    private UserRepository userRepository;
+
+    public List<CustomerDto> getAllCustomers(String userEmail) {
+        return customerRepository.findByUserEmailAndIsActiveTrue(userEmail)
+                .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public CustomerDto getCustomerById(String id) {
-        Optional<Customer> customer = customerRepository.findById(id);
+    public CustomerDto getCustomerById(String userEmail, String id) {
+        Optional<Customer> customer = customerRepository.findByIdAndUserEmail(id, userEmail);
         return customer.map(this::convertToDto).orElse(null);
     }
 
-    public CustomerDto createCustomer(CustomerDto customerDto) {
+    public CustomerDto createCustomer(String userEmail, CustomerDto customerDto) {
         // Validate required fields for creation
         if (customerDto.getName() == null || customerDto.getName().trim().isEmpty()) {
             throw new RuntimeException("Customer name is required");
@@ -40,13 +47,18 @@ public class CustomerService {
             throw new RuntimeException("Customer mobile number is required");
         }
 
-        // Check if mobile number already exists
-        if (customerRepository.existsByMobile(customerDto.getMobile())) {
-            throw new RuntimeException("Customer with mobile number " + customerDto.getMobile() + " already exists");
+        // Get user
+        User user = userRepository.findActiveUserByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Check if mobile number already exists for this user
+        if (customerRepository.existsByUserEmailAndMobile(userEmail, customerDto.getMobile())) {
+            throw new RuntimeException("Customer with mobile number " + customerDto.getMobile() + " already exists in your shop");
         }
 
         Customer customer = new Customer();
-        customer.setId(customerDto.getMobile()); // Set ID to mobile number
+        customer.setId(UUID.randomUUID().toString());
+        customer.setUser(user);
         customer.setName(customerDto.getName());
         customer.setMobile(customerDto.getMobile());
         customer.setAddress(customerDto.getAddress());
@@ -60,14 +72,14 @@ public class CustomerService {
         return convertToDto(savedCustomer);
     }
 
-    public CustomerDto updateCustomer(String id, CustomerDto customerDto) {
-        Customer customer = customerRepository.findById(id)
+    public CustomerDto updateCustomer(String userEmail, String id, CustomerDto customerDto) {
+        Customer customer = customerRepository.findByIdAndUserEmail(id, userEmail)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         // Check if mobile number is being changed and if it already exists
-        if (customerDto.getMobile() != null && !id.equals(customerDto.getMobile()) &&
-                customerRepository.existsByMobile(customerDto.getMobile())) {
-            throw new RuntimeException("Customer with mobile number " + customerDto.getMobile() + " already exists");
+        if (customerDto.getMobile() != null && !customer.getMobile().equals(customerDto.getMobile()) &&
+                customerRepository.existsByUserEmailAndMobile(userEmail, customerDto.getMobile())) {
+            throw new RuntimeException("Customer with mobile number " + customerDto.getMobile() + " already exists in your shop");
         }
 
         // Only update fields that are provided (partial update)
@@ -96,18 +108,12 @@ public class CustomerService {
             customer.setIsActive(customerDto.getIsActive());
         }
 
-        // If mobile number changed, update the ID as well
-        if (customerDto.getMobile() != null && !id.equals(customerDto.getMobile())) {
-            customer.setId(customerDto.getMobile());
-        }
-
         Customer savedCustomer = customerRepository.save(customer);
         return convertToDto(savedCustomer);
     }
 
-    public void deleteCustomer(String id) {
-
-        Customer customer = customerRepository.findById(id)
+    public void deleteCustomer(String userEmail, String id) {
+        Customer customer = customerRepository.findByIdAndUserEmail(id, userEmail)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         // Check if customer has outstanding transactions
@@ -118,46 +124,46 @@ public class CustomerService {
         customerRepository.deleteById(id);
     }
 
-    public List<CustomerDto> searchCustomers(String query) {
+    public List<CustomerDto> searchCustomers(String userEmail, String query) {
         if (query == null || query.trim().isEmpty()) {
-            return getAllCustomers();
+            return getAllCustomers(userEmail);
         }
-        return customerRepository.findByNameContainingIgnoreCaseOrMobileContaining(query.trim(), query.trim())
+        return customerRepository.findByUserEmailAndNameContainingIgnoreCaseOrMobileContaining(userEmail, query.trim(), query.trim())
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public List<CustomerDto> getCustomersByCategory(String category) {
+    public List<CustomerDto> getCustomersByCategory(String userEmail, String category) {
         if (category == null || category.trim().isEmpty()) {
-            return getAllCustomers();
+            return getAllCustomers(userEmail);
         }
-        return customerRepository.findByCategory(category.trim())
+        return customerRepository.findByUserEmailAndCategory(userEmail, category.trim())
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public List<CustomerDto> getActiveCustomers() {
-        return customerRepository.findByIsActiveTrue()
+    public List<CustomerDto> getActiveCustomers(String userEmail) {
+        return customerRepository.findByUserEmailAndIsActiveTrue(userEmail)
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public List<CustomerDto> getCustomersWithOutstandingBalance() {
-        return customerRepository.findByTotalDueGreaterThan(BigDecimal.ZERO)
+    public List<CustomerDto> getCustomersWithOutstandingBalance(String userEmail) {
+        return customerRepository.findByUserEmailAndTotalDueGreaterThan(userEmail, BigDecimal.ZERO)
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public BigDecimal getTotalOutstandingBalance() {
-        BigDecimal total = customerRepository.getTotalOutstandingBalance();
+    public BigDecimal getTotalOutstandingBalance(String userEmail) {
+        BigDecimal total = customerRepository.getTotalOutstandingBalanceByUser(userEmail);
         return total != null ? total : BigDecimal.ZERO;
     }
 
-    public CustomerDto updateCustomerBalance(String customerId, BigDecimal amountChange) {
+    public CustomerDto updateCustomerBalance(String userEmail, String customerId, BigDecimal amountChange) {
         if (customerId == null || customerId.trim().isEmpty()) {
             throw new RuntimeException("Customer ID cannot be null or empty");
         }
@@ -165,7 +171,7 @@ public class CustomerService {
             throw new RuntimeException("Amount change cannot be null");
         }
 
-        Customer customer = customerRepository.findById(customerId)
+        Customer customer = customerRepository.findByIdAndUserEmail(customerId, userEmail)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         BigDecimal currentBalance = customer.getTotalDue() != null ? customer.getTotalDue() : BigDecimal.ZERO;
@@ -176,7 +182,7 @@ public class CustomerService {
         return convertToDto(savedCustomer);
     }
 
-    public CustomerDto updateCustomerTotalDue(String customerId, BigDecimal newTotalDue) {
+    public CustomerDto updateCustomerTotalDue(String userEmail, String customerId, BigDecimal newTotalDue) {
         if (customerId == null || customerId.trim().isEmpty()) {
             throw new RuntimeException("Customer ID cannot be null or empty");
         }
@@ -184,7 +190,7 @@ public class CustomerService {
             throw new RuntimeException("Total due amount cannot be null");
         }
 
-        Customer customer = customerRepository.findById(customerId)
+        Customer customer = customerRepository.findByIdAndUserEmail(customerId, userEmail)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         customer.setTotalDue(newTotalDue);
@@ -194,12 +200,12 @@ public class CustomerService {
         return convertToDto(savedCustomer);
     }
 
-    public CustomerDto patchCustomer(String customerId, CustomerDto customerDto) {
+    public CustomerDto patchCustomer(String userEmail, String customerId, CustomerDto customerDto) {
         if (customerId == null || customerId.trim().isEmpty()) {
             throw new RuntimeException("Customer ID cannot be null or empty");
         }
 
-        Customer customer = customerRepository.findById(customerId)
+        Customer customer = customerRepository.findByIdAndUserEmail(customerId, userEmail)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         // Partial update - only update non-null fields
@@ -233,24 +239,24 @@ public class CustomerService {
         return convertToDto(savedCustomer);
     }
 
-    public List<CustomerDto> getCustomersByOutstandingBalanceRange(BigDecimal minAmount, BigDecimal maxAmount) {
+    public List<CustomerDto> getCustomersByOutstandingBalanceRange(String userEmail, BigDecimal minAmount, BigDecimal maxAmount) {
         if (minAmount == null)
             minAmount = BigDecimal.ZERO;
         if (maxAmount == null)
             maxAmount = new BigDecimal("999999999.99");
 
-        return customerRepository.findByTotalDueBetween(minAmount, maxAmount)
+        return customerRepository.findByUserEmailAndTotalDueBetween(userEmail, minAmount, maxAmount)
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public List<CustomerDto> getCustomersByLastTransactionDate(LocalDate startDate, LocalDate endDate) {
+    public List<CustomerDto> getCustomersByLastTransactionDate(String userEmail, LocalDate startDate, LocalDate endDate) {
         if (startDate == null || endDate == null) {
             throw new RuntimeException("Start date and end date cannot be null");
         }
 
-        return customerRepository.findByLastTransactionDateBetween(startDate, endDate)
+        return customerRepository.findByUserEmailAndLastTransactionDateBetween(userEmail, startDate, endDate)
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());

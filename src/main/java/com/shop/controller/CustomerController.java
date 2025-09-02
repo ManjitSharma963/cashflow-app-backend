@@ -4,6 +4,8 @@ import com.shop.dto.CustomerDto;
 import com.shop.service.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -12,11 +14,16 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/customers")
-@CrossOrigin(origins = { "http://localhost:3000", "http://localhost:3002" }, allowedHeaders = "*")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowedHeaders = "*")
 public class CustomerController {
 
     @Autowired
     private CustomerService customerService;
+
+    private String getCurrentUserEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication.getName();
+    }
 
     @GetMapping
     public ResponseEntity<List<CustomerDto>> getAllCustomers(
@@ -24,29 +31,31 @@ public class CustomerController {
             @RequestParam(required = false) Boolean status,
             @RequestParam(required = false) String search) {
 
+        String userEmail = getCurrentUserEmail();
+
         if (search != null && !search.trim().isEmpty()) {
-            return ResponseEntity.ok(customerService.searchCustomers(search));
+            return ResponseEntity.ok(customerService.searchCustomers(userEmail, search));
         }
 
         if (category != null && !category.trim().isEmpty()) {
-            return ResponseEntity.ok(customerService.getCustomersByCategory(category));
+            return ResponseEntity.ok(customerService.getCustomersByCategory(userEmail, category));
         }
 
         if (status != null) {
             if (status) {
-                return ResponseEntity.ok(customerService.getActiveCustomers());
+                return ResponseEntity.ok(customerService.getActiveCustomers(userEmail));
             } else {
-                // For inactive customers, you might want to implement this method
-                return ResponseEntity.ok(customerService.getAllCustomers());
+                return ResponseEntity.ok(customerService.getAllCustomers(userEmail));
             }
         }
 
-        return ResponseEntity.ok(customerService.getAllCustomers());
+        return ResponseEntity.ok(customerService.getAllCustomers(userEmail));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<CustomerDto> getCustomerById(@PathVariable String id) {
-        CustomerDto customer = customerService.getCustomerById(id);
+        String userEmail = getCurrentUserEmail();
+        CustomerDto customer = customerService.getCustomerById(userEmail, id);
         if (customer != null) {
             return ResponseEntity.ok(customer);
         }
@@ -56,7 +65,8 @@ public class CustomerController {
     @PostMapping
     public ResponseEntity<CustomerDto> createCustomer(@Valid @RequestBody CustomerDto customerDto) {
         try {
-            CustomerDto createdCustomer = customerService.createCustomer(customerDto);
+            String userEmail = getCurrentUserEmail();
+            CustomerDto createdCustomer = customerService.createCustomer(userEmail, customerDto);
             return ResponseEntity.ok(createdCustomer);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
@@ -68,7 +78,8 @@ public class CustomerController {
             @PathVariable String id,
             @Valid @RequestBody CustomerDto customerDto) {
         try {
-            CustomerDto updatedCustomer = customerService.updateCustomer(id, customerDto);
+            String userEmail = getCurrentUserEmail();
+            CustomerDto updatedCustomer = customerService.updateCustomer(userEmail, id, customerDto);
             return ResponseEntity.ok(updatedCustomer);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -77,9 +88,9 @@ public class CustomerController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCustomer(@PathVariable String id) {
-
         try {
-            customerService.deleteCustomer(id);
+            String userEmail = getCurrentUserEmail();
+            customerService.deleteCustomer(userEmail, id);
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
@@ -91,7 +102,8 @@ public class CustomerController {
             @PathVariable String id,
             @RequestParam BigDecimal totalDue) {
         try {
-            CustomerDto updatedCustomer = customerService.updateCustomerTotalDue(id, totalDue);
+            String userEmail = getCurrentUserEmail();
+            CustomerDto updatedCustomer = customerService.updateCustomerTotalDue(userEmail, id, totalDue);
             return ResponseEntity.ok(updatedCustomer);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -103,7 +115,8 @@ public class CustomerController {
             @PathVariable String id,
             @RequestBody CustomerDto customerDto) {
         try {
-            CustomerDto updatedCustomer = customerService.patchCustomer(id, customerDto);
+            String userEmail = getCurrentUserEmail();
+            CustomerDto updatedCustomer = customerService.patchCustomer(userEmail, id, customerDto);
             return ResponseEntity.ok(updatedCustomer);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -118,31 +131,36 @@ public class CustomerController {
 
     @GetMapping("/search")
     public ResponseEntity<List<CustomerDto>> searchCustomers(@RequestParam String query) {
-        List<CustomerDto> customers = customerService.searchCustomers(query);
+        String userEmail = getCurrentUserEmail();
+        List<CustomerDto> customers = customerService.searchCustomers(userEmail, query);
         return ResponseEntity.ok(customers);
     }
 
     @GetMapping("/outstanding")
     public ResponseEntity<List<CustomerDto>> getCustomersWithOutstandingBalance() {
-        List<CustomerDto> customers = customerService.getCustomersWithOutstandingBalance();
+        String userEmail = getCurrentUserEmail();
+        List<CustomerDto> customers = customerService.getCustomersWithOutstandingBalance(userEmail);
         return ResponseEntity.ok(customers);
     }
 
     @GetMapping("/total-outstanding")
     public ResponseEntity<BigDecimal> getTotalOutstandingBalance() {
-        BigDecimal total = customerService.getTotalOutstandingBalance();
+        String userEmail = getCurrentUserEmail();
+        BigDecimal total = customerService.getTotalOutstandingBalance(userEmail);
         return ResponseEntity.ok(total);
     }
 
     @GetMapping("/category/{category}")
     public ResponseEntity<List<CustomerDto>> getCustomersByCategory(@PathVariable String category) {
-        List<CustomerDto> customers = customerService.getCustomersByCategory(category);
+        String userEmail = getCurrentUserEmail();
+        List<CustomerDto> customers = customerService.getCustomersByCategory(userEmail, category);
         return ResponseEntity.ok(customers);
     }
 
     @GetMapping("/active")
     public ResponseEntity<List<CustomerDto>> getActiveCustomers() {
-        List<CustomerDto> customers = customerService.getActiveCustomers();
+        String userEmail = getCurrentUserEmail();
+        List<CustomerDto> customers = customerService.getActiveCustomers(userEmail);
         return ResponseEntity.ok(customers);
     }
 
@@ -150,7 +168,8 @@ public class CustomerController {
     public ResponseEntity<List<CustomerDto>> getCustomersByBalanceRange(
             @RequestParam BigDecimal minAmount,
             @RequestParam BigDecimal maxAmount) {
-        List<CustomerDto> customers = customerService.getCustomersByOutstandingBalanceRange(minAmount, maxAmount);
+        String userEmail = getCurrentUserEmail();
+        List<CustomerDto> customers = customerService.getCustomersByOutstandingBalanceRange(userEmail, minAmount, maxAmount);
         return ResponseEntity.ok(customers);
     }
 }

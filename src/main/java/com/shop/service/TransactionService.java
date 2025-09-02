@@ -5,8 +5,11 @@ import com.shop.entity.Customer;
 import com.shop.entity.Transaction;
 import com.shop.entity.Transaction.TransactionStatus;
 import com.shop.entity.Transaction.TransactionType;
+import com.shop.entity.Transaction.PaymentMethod;
+import com.shop.entity.User;
 import com.shop.repository.CustomerRepository;
 import com.shop.repository.TransactionRepository;
+import com.shop.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,23 +31,82 @@ public class TransactionService {
     @Autowired
     private CustomerRepository customerRepository;
 
-    public List<TransactionDto> getAllTransactions() {
-        return transactionRepository.findAll().stream()
+    @Autowired
+    private UserRepository userRepository;
+
+    public List<TransactionDto> getAllTransactions(String userEmail) {
+        return transactionRepository.findByUserEmailOrderByDateDescCreatedAtDesc(userEmail)
+                .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    public TransactionDto getTransactionById(Long id) {
-        Optional<Transaction> transaction = transactionRepository.findById(id);
+    public TransactionDto getTransactionById(String userEmail, String id) {
+        Optional<Transaction> transaction = transactionRepository.findByIdAndUserEmail(id, userEmail);
         return transaction.map(this::convertToDto).orElse(null);
     }
 
-    public TransactionDto createTransaction(TransactionDto transactionDto) {
-        Customer customer = customerRepository.findById(transactionDto.getCustomerId())
-                .orElseThrow(() -> new RuntimeException("Customer not found"));
+    public List<TransactionDto> getTransactionsByCustomer(String userEmail, String customerId) {
+        return transactionRepository.findByUserEmailAndCustomerIdOrderByDateDesc(userEmail, customerId)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<TransactionDto> getPendingTransactions(String userEmail) {
+        return transactionRepository.findByUserEmailAndStatus(userEmail, TransactionStatus.PENDING)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<TransactionDto> getOverdueTransactions(String userEmail) {
+        LocalDate currentDate = LocalDate.now();
+        return transactionRepository.findByUserEmailAndStatusAndDateBefore(userEmail, TransactionStatus.PENDING, currentDate)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public TransactionDto createTransaction(String userEmail, TransactionDto transactionDto) {
+        // Get user
+        User user = userRepository.findActiveUserByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Get customer and verify it belongs to the user
+        Customer customer = customerRepository.findByIdAndUserEmail(transactionDto.getCustomerId(), userEmail)
+                .orElseThrow(() -> new RuntimeException("Customer not found or access denied"));
 
         Transaction transaction = new Transaction();
+        transaction.setId(UUID.randomUUID().toString());
+        transaction.setUser(user);
         transaction.setCustomer(customer);
+        transaction.setCustomerName(customer.getName());
+        transaction.setTransactionType(transactionDto.getTransactionType());
+        transaction.setAmount(transactionDto.getAmount());
+        transaction.setDescription(transactionDto.getDescription());
+        transaction.setDate(transactionDto.getDate() != null ? transactionDto.getDate() : LocalDate.now());
+        transaction.setStatus(transactionDto.getStatus() != null ? transactionDto.getStatus() : TransactionStatus.PENDING);
+        transaction.setPaymentMethod(transactionDto.getPaymentMethod() != null ? transactionDto.getPaymentMethod() : PaymentMethod.CASH);
+        transaction.setNotes(transactionDto.getNotes());
+
+        Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // Update customer balance based on transaction type
+        updateCustomerBalance(customer, transactionDto.getTransactionType(), transactionDto.getAmount());
+
+        return convertToDto(savedTransaction);
+    }
+
+    public TransactionDto updateTransaction(String userEmail, String id, TransactionDto transactionDto) {
+        Transaction transaction = transactionRepository.findByIdAndUserEmail(id, userEmail)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+
+        // Store old values for balance adjustment
+        TransactionType oldType = transaction.getTransactionType();
+        BigDecimal oldAmount = transaction.getAmount();
+
+        // Update transaction
         transaction.setTransactionType(transactionDto.getTransactionType());
         transaction.setAmount(transactionDto.getAmount());
         transaction.setDescription(transactionDto.getDescription());
@@ -52,151 +115,89 @@ public class TransactionService {
         transaction.setPaymentMethod(transactionDto.getPaymentMethod());
         transaction.setNotes(transactionDto.getNotes());
 
-        // Update customer total due based on transaction type
-        updateCustomerTotalDue(customer, transactionDto.getTransactionType(), transactionDto.getAmount());
-
         Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // Adjust customer balance
+        Customer customer = transaction.getCustomer();
+        // Reverse old transaction effect
+        reverseCustomerBalance(customer, oldType, oldAmount);
+        // Apply new transaction effect
+        updateCustomerBalance(customer, transactionDto.getTransactionType(), transactionDto.getAmount());
+
         return convertToDto(savedTransaction);
     }
 
-    public TransactionDto updateTransaction(Long id, TransactionDto transactionDto) {
-        Transaction transaction = transactionRepository.findById(id)
+    public void deleteTransaction(String userEmail, String id) {
+        Transaction transaction = transactionRepository.findByIdAndUserEmail(id, userEmail)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-        // Revert previous amount from customer total due
-        updateCustomerTotalDue(transaction.getCustomer(), 
-                getOppositeTransactionType(transaction.getTransactionType()), 
-                transaction.getAmount());
-
-        transaction.setTransactionType(transactionDto.getTransactionType());
-        transaction.setAmount(transactionDto.getAmount());
-        transaction.setDescription(transactionDto.getDescription());
-        transaction.setDate(transactionDto.getDate());
-        transaction.setStatus(transactionDto.getStatus());
-        transaction.setPaymentMethod(transactionDto.getPaymentMethod());
-        transaction.setNotes(transactionDto.getNotes());
-
-        // Update customer total due with new amount
-        updateCustomerTotalDue(transaction.getCustomer(), transactionDto.getTransactionType(), transactionDto.getAmount());
-
-        Transaction savedTransaction = transactionRepository.save(transaction);
-        return convertToDto(savedTransaction);
-    }
-
-    public void deleteTransaction(Long id) {
-        Transaction transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Transaction not found"));
-
-        // Revert amount from customer total due
-        updateCustomerTotalDue(transaction.getCustomer(), 
-                getOppositeTransactionType(transaction.getTransactionType()), 
-                transaction.getAmount());
+        // Reverse the transaction effect on customer balance
+        Customer customer = transaction.getCustomer();
+        reverseCustomerBalance(customer, transaction.getTransactionType(), transaction.getAmount());
 
         transactionRepository.deleteById(id);
     }
 
-    public TransactionDto updateTransactionStatus(Long id, TransactionStatus status) {
-        Transaction transaction = transactionRepository.findById(id)
+    public TransactionDto updateTransactionStatus(String userEmail, String id, TransactionStatus status) {
+        Transaction transaction = transactionRepository.findByIdAndUserEmail(id, userEmail)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-        TransactionStatus oldStatus = transaction.getStatus();
         transaction.setStatus(status);
-
-        // Update customer total due if status changes
-        if (oldStatus == TransactionStatus.PENDING && status == TransactionStatus.COMPLETED &&
-                transaction.getTransactionType() == TransactionType.CREDIT) {
-            // Credit transaction completed, no change to total due
-        } else if (oldStatus == TransactionStatus.PENDING && status == TransactionStatus.CANCELLED) {
-            // Transaction cancelled, revert amount from customer total due
-            updateCustomerTotalDue(transaction.getCustomer(), 
-                    getOppositeTransactionType(transaction.getTransactionType()), 
-                    transaction.getAmount());
-        }
-
         Transaction savedTransaction = transactionRepository.save(transaction);
         return convertToDto(savedTransaction);
     }
 
-    public List<TransactionDto> getTransactionsByCustomer(String customerId) {
-        return transactionRepository.findByCustomerId(customerId).stream()
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
+    // Reporting methods
+    public BigDecimal getDailySales(String userEmail, LocalDate date) {
+        BigDecimal sales = transactionRepository.getTotalAmountByUserAndTypeAndDateAndStatus(
+                userEmail, TransactionType.CREDIT, date, TransactionStatus.COMPLETED);
+        return sales != null ? sales : BigDecimal.ZERO;
     }
 
-    public List<TransactionDto> getPendingTransactions() {
-        return transactionRepository.findByStatus(TransactionStatus.PENDING).stream()
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
+    public BigDecimal getDailyCashReceived(String userEmail, LocalDate date) {
+        BigDecimal cash = transactionRepository.getTotalAmountByUserAndTypeAndDateAndStatus(
+                userEmail, TransactionType.PAYMENT, date, TransactionStatus.COMPLETED);
+        return cash != null ? cash : BigDecimal.ZERO;
     }
 
-    public List<TransactionDto> getOverdueTransactions() {
-        return transactionRepository.findByStatusAndDateBefore(TransactionStatus.PENDING, LocalDate.now())
-                .stream()
-                .map(this::convertToDto)
-                .collect(Collectors.toList());
+    public BigDecimal getDailyCreditGiven(String userEmail, LocalDate date) {
+        BigDecimal credit = transactionRepository.getTotalAmountByUserAndTypeAndDateAndStatus(
+                userEmail, TransactionType.CREDIT, date, TransactionStatus.PENDING);
+        return credit != null ? credit : BigDecimal.ZERO;
     }
 
-    public BigDecimal getDailySales(LocalDate date) {
-        return transactionRepository.findByTransactionTypeAndDateAndStatus(
-                TransactionType.CREDIT, date, TransactionStatus.COMPLETED)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    public BigDecimal getPeriodSales(String userEmail, LocalDate startDate, LocalDate endDate) {
+        BigDecimal sales = transactionRepository.getTotalAmountByUserAndTypeAndDateRangeAndStatus(
+                userEmail, TransactionType.CREDIT, startDate, endDate, TransactionStatus.COMPLETED);
+        return sales != null ? sales : BigDecimal.ZERO;
     }
 
-    public BigDecimal getDailyCashReceived(LocalDate date) {
-        return transactionRepository.findByTransactionTypeAndDateAndStatus(
-                TransactionType.PAYMENT, date, TransactionStatus.COMPLETED)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    public BigDecimal getPeriodCashReceived(String userEmail, LocalDate startDate, LocalDate endDate) {
+        BigDecimal cash = transactionRepository.getTotalAmountByUserAndTypeAndDateRangeAndStatus(
+                userEmail, TransactionType.PAYMENT, startDate, endDate, TransactionStatus.COMPLETED);
+        return cash != null ? cash : BigDecimal.ZERO;
     }
 
-    public BigDecimal getDailyCreditGiven(LocalDate date) {
-        return transactionRepository.findByTransactionTypeAndDateAndStatus(
-                TransactionType.CREDIT, date, TransactionStatus.PENDING)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    public BigDecimal getPeriodCreditGiven(String userEmail, LocalDate startDate, LocalDate endDate) {
+        BigDecimal credit = transactionRepository.getTotalAmountByUserAndTypeAndDateRangeAndStatus(
+                userEmail, TransactionType.CREDIT, startDate, endDate, TransactionStatus.PENDING);
+        return credit != null ? credit : BigDecimal.ZERO;
     }
 
-    public BigDecimal getPeriodSales(LocalDate startDate, LocalDate endDate) {
-        return transactionRepository.findByTransactionTypeAndDateBetweenAndStatus(
-                TransactionType.CREDIT, startDate, endDate, TransactionStatus.COMPLETED)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    public BigDecimal getPeriodCashReceived(LocalDate startDate, LocalDate endDate) {
-        return transactionRepository.findByTransactionTypeAndDateBetweenAndStatus(
-                TransactionType.PAYMENT, startDate, endDate, TransactionStatus.COMPLETED)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    public BigDecimal getPeriodCreditGiven(LocalDate startDate, LocalDate endDate) {
-        return transactionRepository.findByTransactionTypeAndDateBetweenAndStatus(
-                TransactionType.CREDIT, startDate, endDate, TransactionStatus.PENDING)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private void updateCustomerTotalDue(Customer customer, TransactionType transactionType, BigDecimal amount) {
-        BigDecimal currentTotalDue = customer.getTotalDue();
+    // Helper methods
+    private void updateCustomerBalance(Customer customer, TransactionType type, BigDecimal amount) {
+        BigDecimal currentBalance = customer.getTotalDue() != null ? customer.getTotalDue() : BigDecimal.ZERO;
         
-        switch (transactionType) {
+        switch (type) {
             case CREDIT:
-                customer.setTotalDue(currentTotalDue.add(amount));
+                customer.setTotalDue(currentBalance.add(amount));
                 break;
             case PAYMENT:
-                customer.setTotalDue(currentTotalDue.subtract(amount));
+                customer.setTotalDue(currentBalance.subtract(amount));
                 break;
             case ADJUSTMENT:
-                // Adjustments can be positive or negative based on amount
-                customer.setTotalDue(currentTotalDue.add(amount));
+                // Adjustment can be positive or negative
+                customer.setTotalDue(currentBalance.subtract(amount));
                 break;
         }
         
@@ -204,24 +205,33 @@ public class TransactionService {
         customerRepository.save(customer);
     }
 
-    private TransactionType getOppositeTransactionType(TransactionType type) {
+    private void reverseCustomerBalance(Customer customer, TransactionType type, BigDecimal amount) {
+        BigDecimal currentBalance = customer.getTotalDue() != null ? customer.getTotalDue() : BigDecimal.ZERO;
+        
         switch (type) {
             case CREDIT:
-                return TransactionType.PAYMENT;
+                customer.setTotalDue(currentBalance.subtract(amount));
+                break;
             case PAYMENT:
-                return TransactionType.CREDIT;
+                customer.setTotalDue(currentBalance.add(amount));
+                break;
             case ADJUSTMENT:
-                return TransactionType.ADJUSTMENT; // No opposite for adjustment
-            default:
-                return TransactionType.CREDIT;
+                customer.setTotalDue(currentBalance.add(amount));
+                break;
         }
+        
+        customerRepository.save(customer);
     }
 
     private TransactionDto convertToDto(Transaction transaction) {
+        if (transaction == null) {
+            return null;
+        }
+
         TransactionDto dto = new TransactionDto();
         dto.setId(transaction.getId());
         dto.setCustomerId(transaction.getCustomer().getId());
-        dto.setCustomerName(transaction.getCustomer().getName());
+        dto.setCustomerName(transaction.getCustomerName());
         dto.setTransactionType(transaction.getTransactionType());
         dto.setAmount(transaction.getAmount());
         dto.setDescription(transaction.getDescription());

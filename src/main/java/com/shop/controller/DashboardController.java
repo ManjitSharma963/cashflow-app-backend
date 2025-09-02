@@ -5,6 +5,8 @@ import com.shop.service.TransactionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -14,7 +16,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/dashboard")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowedHeaders = "*")
 public class DashboardController {
 
     @Autowired
@@ -23,16 +25,22 @@ public class DashboardController {
     @Autowired
     private CustomerService customerService;
 
+    private String getCurrentUserEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication.getName();
+    }
+
     @GetMapping("/today")
     public ResponseEntity<Map<String, Object>> getTodayStats() {
+        String userEmail = getCurrentUserEmail();
         LocalDate today = LocalDate.now();
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("date", today);
-        stats.put("dailySales", transactionService.getDailySales(today));
-        stats.put("dailyCashReceived", transactionService.getDailyCashReceived(today));
-        stats.put("dailyCreditGiven", transactionService.getDailyCreditGiven(today));
-        stats.put("totalOutstandingAmount", customerService.getTotalOutstandingBalance());
+        stats.put("dailySales", transactionService.getDailySales(userEmail, today));
+        stats.put("dailyCashReceived", transactionService.getDailyCashReceived(userEmail, today));
+        stats.put("dailyCreditGiven", transactionService.getDailyCreditGiven(userEmail, today));
+        stats.put("totalOutstandingAmount", customerService.getTotalOutstandingBalance(userEmail));
 
         return ResponseEntity.ok(stats);
     }
@@ -43,6 +51,7 @@ public class DashboardController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
+        String userEmail = getCurrentUserEmail();
         Map<String, Object> summary = new HashMap<>();
         LocalDate now = LocalDate.now();
         LocalDate periodStartDate, periodEndDate;
@@ -75,10 +84,10 @@ public class DashboardController {
         summary.put("period", period);
         summary.put("startDate", periodStartDate);
         summary.put("endDate", periodEndDate);
-        summary.put("periodSales", transactionService.getPeriodSales(periodStartDate, periodEndDate));
-        summary.put("periodCashReceived", transactionService.getPeriodCashReceived(periodStartDate, periodEndDate));
-        summary.put("periodCreditGiven", transactionService.getPeriodCreditGiven(periodStartDate, periodEndDate));
-        summary.put("totalOutstandingAmount", customerService.getTotalOutstandingBalance());
+        summary.put("periodSales", transactionService.getPeriodSales(userEmail, periodStartDate, periodEndDate));
+        summary.put("periodCashReceived", transactionService.getPeriodCashReceived(userEmail, periodStartDate, periodEndDate));
+        summary.put("periodCreditGiven", transactionService.getPeriodCreditGiven(userEmail, periodStartDate, periodEndDate));
+        summary.put("totalOutstandingAmount", customerService.getTotalOutstandingBalance(userEmail));
 
         return ResponseEntity.ok(summary);
     }

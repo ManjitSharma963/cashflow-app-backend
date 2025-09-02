@@ -1,8 +1,7 @@
 package com.shop.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,17 +11,19 @@ import java.util.List;
 @Table(name = "customers")
 public class Customer {
     @Id
-    @Size(min = 10, max = 15, message = "Mobile number must be between 10 and 15 digits")
-    private String id; // Mobile number as ID
+    @Column(length = 50)
+    private String id;
 
-    @NotBlank(message = "Name is required")
-    @Size(min = 2, max = 100, message = "Name must be between 2 and 100 characters")
-    @Column(nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_email", referencedColumnName = "email", nullable = false)
+    private User user;
+
+    @NotNull(message = "Name is required")
+    @Column(nullable = false, length = 100)
     private String name;
 
-    @NotBlank(message = "Mobile number is required")
-    @Size(min = 10, max = 15, message = "Mobile number must be between 10 and 15 digits")
-    @Column(name = "mobile", nullable = false, unique = true)
+    @NotNull(message = "Mobile is required")
+    @Column(nullable = false, length = 15)
     private String mobile;
 
     @Column(columnDefinition = "TEXT")
@@ -37,6 +38,9 @@ public class Customer {
     @Column(name = "total_due", precision = 10, scale = 2)
     private BigDecimal totalDue = BigDecimal.ZERO;
 
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
     @Column(name = "last_transaction_date")
     private LocalDate lastTransactionDate;
 
@@ -45,9 +49,6 @@ public class Customer {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @Column(name = "is_active")
-    private Boolean isActive = true;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Transaction> transactions;
@@ -59,14 +60,28 @@ public class Customer {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        if (id == null) {
-            id = mobile; // Set ID to mobile number if not set
+        if (lastTransactionDate == null) {
+            lastTransactionDate = LocalDate.now();
         }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // Constructors
+    public Customer() {}
+
+    public Customer(String id, User user, String name, String mobile, String address, String category, String notes, BigDecimal totalDue) {
+        this.id = id;
+        this.user = user;
+        this.name = name;
+        this.mobile = mobile;
+        this.address = address;
+        this.category = category;
+        this.notes = notes;
+        this.totalDue = totalDue;
     }
 
     // Getters and Setters
@@ -76,6 +91,14 @@ public class Customer {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 
     public String getName() {
@@ -126,6 +149,14 @@ public class Customer {
         this.totalDue = totalDue;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
     public LocalDate getLastTransactionDate() {
         return lastTransactionDate;
     }
@@ -148,14 +179,6 @@ public class Customer {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
     }
 
     public List<Transaction> getTransactions() {
